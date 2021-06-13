@@ -33,7 +33,8 @@ void Filter3D::statisticalOutlierRemoval(size_t _k, pointCloud input_,
 
   std::vector<size_t> nn_indices(_k);
   std::vector<double> nn_dists(_k);
-  std::vector<double> distances(size);
+  std::vector<double> distances;
+  distances.reserve(size);
   indices.resize(size);
   size_t oii = 0,
          rii =
@@ -59,10 +60,9 @@ void Filter3D::statisticalOutlierRemoval(size_t _k, pointCloud input_,
   double sum = 0, sq_sum = 0;
 
   sum = std::accumulate(distances.begin(), distances.end(), 0);
-  sq_sum = std::accumulate(distances.begin(), distances.end(), 0,
-                           [](double &lhs, double &rhs) {
-                             return static_cast<double>(lhs + (rhs * rhs));
-                           });
+  sq_sum = std::accumulate(
+      distances.begin(), distances.end(), 0,
+      [](const double &lhs, const double &rhs) { return (lhs + (rhs * rhs)); });
 
   double mean = sum / static_cast<double>(valid_distances);
   double variance =
@@ -265,7 +265,7 @@ double Filter3D::getMean(size_t _k, pointCloud input_) {
   sum = std::accumulate(distances.begin(), distances.end(), 0);
   sq_sum = std::accumulate(
       distances.begin(), distances.end(), 0,
-      [](double &lhs, double &rhs) { return (lhs + (rhs * rhs)); });
+      [](const double &lhs, const double &rhs) { return (lhs + (rhs * rhs)); });
 
   double mean = sum / static_cast<double>(valid_distances);
   double variance =
@@ -318,7 +318,7 @@ void Filter3D::MakeSmoothPointCloud(size_t _k, double smoothingFactor,
   sum = std::accumulate(distances.begin(), distances.end(), 0);
   sq_sum = std::accumulate(
       distances.begin(), distances.end(), 0,
-      [](double &lhs, double &rhs) { return (lhs + (rhs * rhs)); });
+      [](const double &lhs, const double &rhs) { return (lhs + (rhs * rhs)); });
 
   double mean = sum / static_cast<double>(valid_distances);
 
@@ -431,9 +431,10 @@ void Filter3D::euclideanClustering(double radius, size_t minClusterSize,
       output.push_back(intermediattPointCloud);
     }
   }
-  sort(output.begin(), output.end(), [](pointCloud &lhs, pointCloud &rhs) {
-    return lhs.size() > rhs.size();
-  });
+  sort(output.begin(), output.end(),
+       [](const pointCloud &lhs, const pointCloud &rhs) {
+         return lhs.size() > rhs.size();
+       });
   output.shrink_to_fit();
 }
 
@@ -490,7 +491,7 @@ void Filter3D::euclideanClustering(double radius, size_t minClusterSize,
     }
   }
   sort(output.begin(), output.end(),
-       [](std::vector<int> &lhs, std::vector<int> &rhs) {
+       [](const std::vector<int> &lhs, const std::vector<int> &rhs) {
          return lhs.size() > rhs.size();
        });
   output.shrink_to_fit();
