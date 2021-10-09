@@ -1,0 +1,6 @@
+[submodule "thirdparty/flann"]
+	path = thirdparty/flann
+	url = git@github.com:Shahabaz-Bagwan/flann.git
+[submodule "thirdparty/eigen"]
+	path = thirdparty/eigen
+	url = https://gitlab.com/libeigen/eigen.git
