@@ -2,7 +2,7 @@
 cmake_minimum_required( VERSION 3.10)
 
 # name of the project
-project(pclExtractedStuff)
+project(pointCloudFilters)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
