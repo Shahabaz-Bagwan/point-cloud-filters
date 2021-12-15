@@ -5,6 +5,8 @@ cmake_minimum_required( VERSION 3.10)
 project(pointCloudFilters)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(EXECUTABLE_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build/bin)
+set(LIBRARY_OUTPUT_PATH ${CMAKE_CURRENT_SOURCE_DIR}/build/lib)
 
 # specify the C++ standard
 set(CMAKE_CXX_STANDARD 17)
