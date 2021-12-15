@@ -12,7 +12,7 @@
 --------------------------------------------------------------------------
 */
 
-#include <PointCloudFilters.hpp>
+#include <pointCloudFilters/PointCloudFilters.hpp>
 
 Filter3D::Filter3D()
 {

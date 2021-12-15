@@ -1,5 +1,5 @@
 
-#include <IterativeClosestPoint.hpp>
+#include <pointCloudFilters/IterativeClosestPoint.hpp>
 
 IterativeClosestPoint::IterativeClosestPoint()
 {

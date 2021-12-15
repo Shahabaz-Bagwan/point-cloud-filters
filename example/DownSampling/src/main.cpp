@@ -1,9 +1,9 @@
-#include <FileHandler.hpp>
-#include <IterativeClosestPoint.hpp>
-#include <KdtreeFlann.hpp>
-#include <PointCloudFilters.hpp>
 #include <fstream>
 #include <iostream>
+#include <pointCloudFilters/FileHandler.hpp>
+#include <pointCloudFilters/IterativeClosestPoint.hpp>
+#include <pointCloudFilters/KdtreeFlann.hpp>
+#include <pointCloudFilters/PointCloudFilters.hpp>
 #include <string>
 #include <vector>
 

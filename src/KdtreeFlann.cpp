@@ -1,4 +1,4 @@
-#include <KdtreeFlann.hpp>
+#include <pointCloudFilters/KdtreeFlann.hpp>
 
 KDtreeFlann::KDtreeFlann() { queryPt.resize( dim ); }
 

@@ -14,9 +14,9 @@
 
 #pragma once
 
+#include "KdtreeFlann.hpp"
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
-#include <KdtreeFlann.hpp>
 #include <algorithm>
 #include <cfloat>
 #include <numeric>
