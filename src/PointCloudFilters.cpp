@@ -601,8 +601,8 @@ void Filter3D::findNormals( pointCloud cloud, size_t numberOfneighbour,
     double eig_sum =
       sacledCVM.coeff( 0 ) + sacledCVM.coeff( 4 ) + sacledCVM.coeff( 8 );
     if( eig_sum != 0 )
-      output[ i ].curvature =
-        fabsf( es.eigenvalues()[ minEvalIndex ].real() / eig_sum );
+      output[ i ].curvature = fabsf( static_cast< float >(
+        es.eigenvalues()[ minEvalIndex ].real() / eig_sum ) );
     else
       output[ i ].curvature = 0;
   }
