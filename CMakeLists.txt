@@ -20,17 +20,21 @@ add_subdirectory(example)
 
 # Create library
 add_library(${PROJECT_NAME}_shared SHARED ${SOURCES})
-target_link_libraries(${PROJECT_NAME}_shared PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/build/thirdparty/flann/lib/libflann.so )
+
+target_link_libraries(${PROJECT_NAME}_shared PUBLIC flann_cpp)
+
 target_include_directories( ${PROJECT_NAME}_shared PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/flann/src/cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/eigen
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/eigen
 )
 
 add_library(${PROJECT_NAME}_static STATIC ${SOURCES})
-target_link_libraries(${PROJECT_NAME}_static ${CMAKE_CURRENT_SOURCE_DIR}/build/thirdparty/flann/lib/libflann.so )
+
+target_link_libraries(${PROJECT_NAME}_static PUBLIC flann_cpp_s )
+
 target_include_directories( ${PROJECT_NAME}_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/flann/src/cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/eigen
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/eigen
 )

@@ -1,4 +1,4 @@
-#include "KdtreeFlann.hpp"
+#include "PointDefinition.hpp"
 #include <string>
 
 class FileHandler

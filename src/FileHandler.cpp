@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream>
 #include <pointCloudFilters/FileHandler.hpp>
 
 pointCloud FileHandler::loadXYZfile( const std::string& filename )

@@ -1,17 +1,11 @@
 #pragma once
 
+#include "PointDefinition.hpp"
 #include <flann/algorithms/dist.h>
 #include <flann/flann.h>
 #include <vector>
 
-using FLANNIndex = ::flann::Index<::flann::L2_Simple< double > >;
-
-struct Point
-{
-  double x, y, z;
-};
-
-using pointCloud = std::vector< Point >;
+using FLANNIndex = ::flann::Index< ::flann::L2_Simple< double > >;
 
 class KDtreeFlann
 {

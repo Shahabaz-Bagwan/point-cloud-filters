@@ -2,6 +2,7 @@
 #pragma once
 
 #include "KdtreeFlann.hpp"
+#include "PointDefinition.hpp"
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 

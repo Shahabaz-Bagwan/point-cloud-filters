@@ -15,6 +15,7 @@
 #pragma once
 
 #include "KdtreeFlann.hpp"
+#include "PointDefinition.hpp"
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 #include <algorithm>
@@ -23,10 +24,6 @@
 #include <vector>
 
 // Saves noramal and curvature values
-struct normalsAndCurvature
-{
-  double nx, ny, nz, curvature;
-};
 
 class Filter3D
 {
