@@ -1,14 +1,16 @@
 #pragma once
 #include <vector>
 
-struct Point
-{
-  double x, y, z;
-};
+namespace PCF {
+  struct Point
+  {
+    double x, y, z;
+  };
 
-using pointCloud = std::vector< Point >;
+  using pointCloud = std::vector< Point >;
 
-struct normalsAndCurvature
-{
-  double nx, ny, nz, curvature;
-};
+  struct normalsAndCurvature
+  {
+    double nx, ny, nz, curvature;
+  };
+} // namespace PCF

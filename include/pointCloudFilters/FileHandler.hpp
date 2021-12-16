@@ -1,10 +1,13 @@
 #include "PointDefinition.hpp"
 #include <string>
 
-class FileHandler
-{
-public:
-  pointCloud loadXYZfile( const std::string& filename );
+namespace PCF {
 
-  int writeXYZfile( const pointCloud& pc, const std::string& filename );
-};
+  class FileHandler
+  {
+  public:
+    pointCloud loadXYZfile( const std::string& filename );
+
+    int writeXYZfile( const pointCloud& pc, const std::string& filename );
+  };
+} // namespace PCF

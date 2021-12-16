@@ -9,6 +9,7 @@
 
 int main( int argc, char* argv[] )
 {
+  using namespace PCF;
   if( argc < 2 ) {
     std::cout << "Please provide input file" << std::endl;
     return 1;
