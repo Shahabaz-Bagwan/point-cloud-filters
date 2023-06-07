@@ -29,13 +29,15 @@ namespace {
     inline Correspondence()
       : index_query( 0 ), index_match( -1 ),
         distance( std::numeric_limits< double >::max() )
-    {}
+    {
+    }
 
     inline Correspondence( int _index_query, int _index_match,
                            double _distance )
       : index_query( _index_query ), index_match( _index_match ),
         distance( _distance )
-    {}
+    {
+    }
 
     virtual ~Correspondence() {}
 
@@ -55,7 +57,10 @@ namespace PCF {
     void align( double max_distance, size_t maxIteration, pointCloud& source,
                 pointCloud target, pointCloud& output );
 
+    Eigen::Matrix4d getTxMatrix() { return transformation_matrix_; }
+
   private:
+    Eigen::Matrix4d transformation_matrix_;
     double correspondences_prev_mse_;
 
     inline bool hasConverged( size_t iterations_, size_t max_iterations_,

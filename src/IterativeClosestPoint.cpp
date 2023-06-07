@@ -99,7 +99,8 @@ namespace PCF {
     }
 
     // Call Umeyama directly from Eigen
-    transformation_matrix = Eigen::umeyama( cloud_src, cloud_tgt, false );
+    transformation_matrix  = Eigen::umeyama( cloud_src, cloud_tgt, false );
+    transformation_matrix_ = transformation_matrix;
   }
 
   inline void IterativeClosestPoint::transformCloud(
