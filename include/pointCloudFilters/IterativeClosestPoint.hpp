@@ -60,7 +60,7 @@ namespace PCF {
     Eigen::Matrix4d getTxMatrix() { return transformation_matrix_; }
 
   private:
-    Eigen::Matrix4d transformation_matrix_;
+    Eigen::Matrix4d transformation_matrix_ = Eigen::Matrix4d::Identity();
     double correspondences_prev_mse_;
 
     inline bool hasConverged( size_t iterations_, size_t max_iterations_,

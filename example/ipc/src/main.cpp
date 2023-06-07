@@ -20,7 +20,7 @@ int main( int argc, char* argv[] )
 
   IterativeClosestPoint ipc;
   pointCloud output;
-  ipc.align( 100, 20, B, A, output );
+  ipc.align( 100, 20, A, B, output );
 
   auto tx = ipc.getTxMatrix();
 
