@@ -1,5 +1,6 @@
 
 #include <pointCloudFilters/IterativeClosestPoint.hpp>
+#include <pointCloudFilters/KdtreeFlann.hpp>
 
 namespace PCF {
   IterativeClosestPoint::IterativeClosestPoint()

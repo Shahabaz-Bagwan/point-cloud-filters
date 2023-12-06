@@ -1,5 +1,5 @@
-#include <fstream>
 #include <iostream>
+#include <ostream>
 #include <pointCloudFilters/FileHandler.hpp>
 #include <pointCloudFilters/IterativeClosestPoint.hpp>
 #include <pointCloudFilters/KdtreeFlann.hpp>
