@@ -12,6 +12,10 @@
 --------------------------------------------------------------------------
 */
 
+#include <algorithm>
+#include <cfloat>
+#include <numeric>
+#include <pointCloudFilters/KdtreeFlann.hpp>
 #include <pointCloudFilters/PointCloudFilters.hpp>
 namespace PCF {
 

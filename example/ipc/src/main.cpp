@@ -1,9 +1,7 @@
-#include <fstream>
 #include <iostream>
 #include <pointCloudFilters/FileHandler.hpp>
 #include <pointCloudFilters/IterativeClosestPoint.hpp>
 #include <string>
-#include <vector>
 
 int main( int argc, char* argv[] )
 {

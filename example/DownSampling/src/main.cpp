@@ -5,7 +5,6 @@
 #include <pointCloudFilters/KdtreeFlann.hpp>
 #include <pointCloudFilters/PointCloudFilters.hpp>
 #include <string>
-#include <vector>
 
 int main( int argc, char* argv[] )
 {

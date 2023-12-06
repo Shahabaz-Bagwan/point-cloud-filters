@@ -14,13 +14,9 @@
 
 #pragma once
 
-#include "KdtreeFlann.hpp"
 #include "PointDefinition.hpp"
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
-#include <algorithm>
-#include <cfloat>
-#include <numeric>
 #include <vector>
 
 namespace PCF {
@@ -74,7 +70,8 @@ namespace PCF {
 
       cloud_point_index_idx( size_t idx_, size_t cloud_point_index_ )
         : idx( idx_ ), cloud_point_index( cloud_point_index_ )
-      {}
+      {
+      }
       bool operator<( const cloud_point_index_idx& p ) const
       {
         return ( idx < p.idx );
