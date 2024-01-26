@@ -9,11 +9,14 @@ namespace PCF {
     std::ifstream file;
     file.open( filename );
     pointCloud pc;
-    Point p;
-    std::string x, y, z;
+    Point p{};
+    std::string x;
+    std::string y;
+    std::string z;
 
-    if( !file.is_open() )
+    if( !file.is_open() ) {
       std::cout << "can't open input file" << std::endl;
+    }
 
     while( true ) {
       if( std::getline( file, x, ' ' ) && std::getline( file, y, ' ' ) &&
@@ -23,8 +26,9 @@ namespace PCF {
         p.z = std::stod( z );
         pc.push_back( p );
       }
-      if( file.eof() )
+      if( file.eof() ) {
         break;
+      }
     }
     file.close();
     return pc;
@@ -41,11 +45,10 @@ namespace PCF {
       return -1;
     }
 
-    for( size_t i = 0; i < ( pc.size() - 1 ); i++ ) {
-      xyzFile << pc[ i ].x << " " << pc[ i ].y << " " << pc[ i ].z << std::endl;
+    for( auto const& pt : pc ) {
+      xyzFile << pt.x << " " << pt.y << " " << pt.z << std::endl;
     }
-    xyzFile << pc[ pc.size() - 1 ].x << " " << pc[ pc.size() - 1 ].y << " "
-            << pc[ pc.size() - 1 ].z;
+
     xyzFile.close();
     return 0;
   }
