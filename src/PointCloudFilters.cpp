@@ -12,10 +12,11 @@
 --------------------------------------------------------------------------
 */
 
-#include <math.h>
+#include <cmath>
 
 #include <algorithm>
 #include <cfloat>
+#include <iterator>
 #include <numeric>
 #include <pointCloudFilters/KdtreeFlann.hpp>
 #include <pointCloudFilters/PointCloudFilters.hpp>
@@ -58,7 +59,8 @@ namespace PCF {
       for( int it = 1; it < k; ++it ) { // k = 0 is the query point
         distSum += sqrt( nnDists[ it ] );
       }
-      distances[ iii ] = static_cast< double >( distSum / k );
+      distances[ iii ] =
+        static_cast< double >( distSum / static_cast< double >( k ) );
       validDistances++;
     }
 
@@ -66,8 +68,8 @@ namespace PCF {
     double sum   = 0;
     double sqSum = 0;
 
-    sum   = std::accumulate( distances.begin(), distances.end(), 0 );
-    sqSum = std::accumulate( distances.begin(), distances.end(), 0,
+    sum   = std::accumulate( distances.begin(), distances.end(), double{} );
+    sqSum = std::accumulate( distances.begin(), distances.end(), double{},
                              []( const double& lhs, const double& rhs ) {
                                return ( lhs + ( rhs * rhs ) );
                              } );
@@ -85,9 +87,10 @@ namespace PCF {
          ++iii ) // iii = input indices iterator
     {
       // Points having a too high average distance are outliers
-      if( distances[ iii ] < distanceThreshold )
+      if( distances[ iii ] < distanceThreshold ) {
         // Otherwise it was a normal point for output (inlier)
         indices[ oii++ ] = iii;
+      }
     }
 
     // Resize the output arrays
@@ -97,11 +100,13 @@ namespace PCF {
       output[ i ].y = input[ indices[ i ] ].y;
       output[ i ].z = input[ indices[ i ] ].z;
     }
-    output.erase( output.begin() + indices.size(), output.end() );
+    output.erase( output.begin() + static_cast< long >( indices.size() ),
+                  output.end() );
+
     output.shrink_to_fit();
   }
 
-  void Filter3D::voxelFilter( pointCloud input, double Delta,
+  void Filter3D::voxelFilter( pointCloud input, double delta,
                               pointCloud& output )
   {
     size_t size = input.size();
@@ -125,37 +130,31 @@ namespace PCF {
       maxP = maxP.max( pt );
     }
 
-    for( size_t i = 0; i < size; i++ ) {
-      double posX = 0.0f;
-      double posY = 0.0f;
-      double posZ = 0.0f;
-      int absX    = 0;
-      int absY    = 0;
-      int absZ    = 0;
+    auto calculateAbs = [ & ]( double value ) {
+      return std::abs( std::ceil( value / delta ) );
+    };
 
-      // calculate the relative world co-ordinate position from minimum point
-      posX = minP[ 0 ] - input[ i ].x;
-      posY = minP[ 1 ] - input[ i ].y;
-      posZ = minP[ 2 ] - input[ i ].z;
+    auto calcFoor = [ & ]( double abs, double min ) {
+      return std::floor( abs * delta - min );
+    };
 
-      /* calculate the number of grid required to reach the point from
-      minimum point in respective axis direction*/
-      absX = std::abs( std::ceil( posX / Delta ) );
-      absY = std::abs( std::ceil( posY / Delta ) );
-      absZ = std::abs( std::ceil( posZ / Delta ) );
-
-      output[ i ].x = floor( absX * Delta - minP[ 0 ] );
-      output[ i ].y = floor( absY * Delta - minP[ 1 ] );
-      output[ i ].z = floor( absZ * Delta - minP[ 2 ] );
-    }
+    std::transform( input.begin(), input.end(), std::back_inserter( output ),
+                    [ & ]( auto const& pnt ) {
+                      auto absX = calculateAbs( minP[ 0 ] - pnt.x );
+                      auto absY = calculateAbs( minP[ 1 ] - pnt.y );
+                      auto absZ = calculateAbs( minP[ 2 ] - pnt.z );
+                      return Point( calcFoor( absX, minP[ 0 ] ),
+                                    calcFoor( absY, minP[ 1 ] ),
+                                    calcFoor( absZ, minP[ 2 ] ) );
+                    } );
 
     // Compute the minimum and maximum bounding box values
-    minB[ 0 ] = static_cast< int >( floor( minP[ 0 ] / Delta ) );
-    maxB[ 0 ] = static_cast< int >( floor( maxP[ 0 ] / Delta ) );
-    minB[ 1 ] = static_cast< int >( floor( minP[ 1 ] / Delta ) );
-    maxB[ 1 ] = static_cast< int >( floor( maxP[ 1 ] / Delta ) );
-    minB[ 2 ] = static_cast< int >( floor( minP[ 2 ] / Delta ) );
-    maxB[ 2 ] = static_cast< int >( floor( maxP[ 2 ] / Delta ) );
+    minB[ 0 ] = static_cast< int >( floor( minP[ 0 ] / delta ) );
+    maxB[ 0 ] = static_cast< int >( floor( maxP[ 0 ] / delta ) );
+    minB[ 1 ] = static_cast< int >( floor( minP[ 1 ] / delta ) );
+    maxB[ 1 ] = static_cast< int >( floor( maxP[ 1 ] / delta ) );
+    minB[ 2 ] = static_cast< int >( floor( minP[ 2 ] / delta ) );
+    maxB[ 2 ] = static_cast< int >( floor( maxP[ 2 ] / delta ) );
 
     // Compute the number of divisions needed along all axis
     divB      = maxB - minB + Eigen::Vector4i::Ones();
@@ -169,11 +168,11 @@ namespace PCF {
     indexVector.reserve( size );
 
     for( size_t it = 0; it < size; it++ ) {
-      int ijk0 = static_cast< int >( floor( input[ it ].x / Delta ) -
+      int ijk0 = static_cast< int >( floor( input[ it ].x / delta ) -
                                      static_cast< double >( minB[ 0 ] ) );
-      int ijk1 = static_cast< int >( floor( input[ it ].y / Delta ) -
+      int ijk1 = static_cast< int >( floor( input[ it ].y / delta ) -
                                      static_cast< double >( minB[ 1 ] ) );
-      int ijk2 = static_cast< int >( floor( input[ it ].z / Delta ) -
+      int ijk2 = static_cast< int >( floor( input[ it ].z / delta ) -
                                      static_cast< double >( minB[ 2 ] ) );
 
       // Compute the centroid leaf index
@@ -237,9 +236,9 @@ namespace PCF {
         ++counter;
       }
 
-      output[ index ].x = x / counter;
-      output[ index ].y = y / counter;
-      output[ index ].z = z / counter;
+      output[ index ].x = x / static_cast< double >( counter );
+      output[ index ].y = y / static_cast< double >( counter );
+      output[ index ].z = z / static_cast< double >( counter );
 
       ++index;
     }
@@ -278,16 +277,17 @@ namespace PCF {
       for( size_t it = 1; it < k; ++it ) { // k = 0 is the query point
         distSum += sqrt( nnDists[ it ] );
       }
-      distances[ iii ] = static_cast< double >( distSum / k );
+      distances[ iii ] =
+        static_cast< double >( distSum / static_cast< double >( k ) );
       validDistances++;
     }
 
     // Estimate the mean and the standard deviation of the distance vector
     double sum   = 0;
     double sqSum = 0;
-    sum          = std::accumulate( distances.begin(), distances.end(), 0 );
-    sqSum        = std::accumulate( distances.begin(), distances.end(), 0,
-                                    []( const double& lhs, const double& rhs ) {
+    sum   = std::accumulate( distances.begin(), distances.end(), double{} );
+    sqSum = std::accumulate( distances.begin(), distances.end(), double{},
+                             []( const double& lhs, const double& rhs ) {
                                return ( lhs + ( rhs * rhs ) );
                              } );
 
@@ -334,26 +334,30 @@ namespace PCF {
 
       // Calculate the mean distance to its neighbours
       double distSum = 0.0;
-      for( int it = 1; it < k; ++it ) // k = 0 is the query point
+
+      for( int it = 1; it < k; ++it ) { // k = 0 is the query point
         distSum += sqrt( nnDists[ it ] );
-      distances[ iii ] = static_cast< double >( distSum / k );
+      }
+
+      distances[ iii ] =
+        static_cast< double >( distSum / static_cast< double >( k ) );
       validDistances++;
     }
 
     // Estimate the mean and the standard deviation of the distance vector
-    double sum    = 0;
-    double sq_sum = 0;
+    double sum   = 0;
+    double sqSum = 0;
 
-    sum    = std::accumulate( distances.begin(), distances.end(), 0 );
-    sq_sum = std::accumulate( distances.begin(), distances.end(), 0,
-                              []( const double& lhs, const double& rhs ) {
-                                return ( lhs + ( rhs * rhs ) );
-                              } );
+    sum   = std::accumulate( distances.begin(), distances.end(), double{} );
+    sqSum = std::accumulate( distances.begin(), distances.end(), double{},
+                             []( const double& lhs, const double& rhs ) {
+                               return ( lhs + ( rhs * rhs ) );
+                             } );
 
     double mean = sum / static_cast< double >( validDistances );
 
     double variance =
-      ( sq_sum - sum * sum / static_cast< double >( validDistances ) ) /
+      ( sqSum - sum * sum / static_cast< double >( validDistances ) ) /
       ( static_cast< double >( validDistances ) - 1 );
 
     double stddev = sqrt( variance );
@@ -380,9 +384,12 @@ namespace PCF {
             avgZ[ counter ] = avgZ[ counter ] + input[ indicesRadius[ j ] ].z;
           }
           // New point cloud with average points
-          avgX[ counter ] = avgX[ counter ] / numberOfIndices;
-          avgY[ counter ] = avgY[ counter ] / numberOfIndices;
-          avgZ[ counter ] = avgZ[ counter ] / numberOfIndices;
+          avgX[ counter ] =
+            avgX[ counter ] / static_cast< double >( numberOfIndices );
+          avgY[ counter ] =
+            avgY[ counter ] / static_cast< double >( numberOfIndices );
+          avgZ[ counter ] =
+            avgZ[ counter ] / static_cast< double >( numberOfIndices );
           counter++;
         }
       }
@@ -447,7 +454,7 @@ namespace PCF {
 
       if( clusterPoints.size() >= minClusterSize &&
           clusterPoints.size() <= maxClusterSize ) {
-        std::vector< int > sortedCloud;
+        std::vector< size_t > sortedCloud;
         pointCloud intermediatePointCloud;
         sortedCloud.resize( clusterPoints.size() );
         for( size_t j = 0; j < clusterPoints.size(); j++ ) {
@@ -474,10 +481,9 @@ namespace PCF {
     output.shrink_to_fit();
   }
 
-  void
-    Filter3D::euclideanClustering( double radius, size_t minClusterSize,
-                                   size_t maxClusterSize, pointCloud input,
-                                   std::vector< std::vector< int > >& output )
+  void Filter3D::euclideanClustering(
+    double radius, size_t minClusterSize, size_t maxClusterSize,
+    pointCloud input, std::vector< std::vector< size_t > >& output )
   {
     KDtreeFlann tree;
 
@@ -519,7 +525,7 @@ namespace PCF {
 
       if( clusterPoints.size() >= minClusterSize &&
           clusterPoints.size() <= maxClusterSize ) {
-        std::vector< int > sortedCloud;
+        std::vector< size_t > sortedCloud;
         sortedCloud.resize( clusterPoints.size() );
         for( int j = 0; j < clusterPoints.size(); j++ ) {
           sortedCloud[ j ] = clusterPoints[ j ];
@@ -540,7 +546,7 @@ namespace PCF {
   }
 
   void Filter3D::findCentroidAndCovarianceMatrix(
-    pointCloud cloud, Eigen::Matrix3f& covarianceMatrix,
+    pointCloud cloud, Eigen::Matrix3d& covarianceMatrix,
     Eigen::Matrix< double, 4, 1 >& centroid )
   {
     // initialize matrix in row form to save the computations
@@ -582,7 +588,7 @@ namespace PCF {
   void Filter3D::findNormals( pointCloud cloud, size_t numberOfneighbour,
                               std::vector< NormalsAndCurvature >& output )
   {
-    Eigen::Matrix3f covarianceMatrix;
+    Eigen::Matrix3d covarianceMatrix;
     Eigen::Matrix< double, 4, 1 > centroid;
     pointCloud processingCloud( numberOfneighbour );
     KDtreeFlann tree( cloud );
@@ -601,8 +607,8 @@ namespace PCF {
       findCentroidAndCovarianceMatrix( processingCloud, covarianceMatrix,
                                        centroid );
 
-      Eigen::Matrix3f::Scalar scale = covarianceMatrix.cwiseAbs().maxCoeff();
-      Eigen::Matrix3f scaledCVM     = covarianceMatrix / scale;
+      Eigen::Matrix3d::Scalar scale = covarianceMatrix.cwiseAbs().maxCoeff();
+      Eigen::Matrix3d scaledCVM     = covarianceMatrix / scale;
 
       // Extract the smallest eigenvalue and its eigenvector
       Eigen::EigenSolver< Eigen::Matrix3f > es( scaledCVM );
@@ -613,7 +619,7 @@ namespace PCF {
       eval[ 2 ] = es.eigenvalues()[ 2 ].real();
 
       auto result = std::min_element( std::begin( eval ), std::end( eval ) );
-      int minEvalIndex = std::distance( std::begin( eval ), result );
+      long minEvalIndex = std::distance( std::begin( eval ), result );
 
       Eigen::VectorXcf v = es.eigenvectors().col( minEvalIndex );
       output[ i ].nx     = v[ 0 ].real();

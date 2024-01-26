@@ -17,6 +17,7 @@
 #include "PointDefinition.hpp"
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
+#include <cstddef>
 #include <vector>
 
 namespace PCF {
@@ -41,14 +42,14 @@ namespace PCF {
 
     void euclideanClustering( double radius, size_t minClusterSize,
                               size_t maxClusterSize, pointCloud input,
-                              std::vector< std::vector< int > >& output );
+                              std::vector< std::vector< size_t > >& output );
 
     void euclideanClustering( double radius, size_t minClusterSize,
                               size_t maxClusterSize, pointCloud input,
                               std::vector< pointCloud >& output );
 
     void findCentroidAndCovarianceMatrix(
-      pointCloud cloud, Eigen::Matrix3f& covarianceMatrix,
+      pointCloud cloud, Eigen::Matrix3d& covarianceMatrix,
       Eigen::Matrix< double, 4, 1 >& centroid );
 
     void findNormals( pointCloud cloud, size_t numberOfneighbour,
