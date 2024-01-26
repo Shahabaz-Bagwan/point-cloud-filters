@@ -116,10 +116,8 @@ namespace PCF {
     Eigen::Vector4d pt( 0.0f, 0.0f, 0.0f, 1.0f );
     Eigen::Vector4d ptT;
     Eigen::Matrix4d tr = transform.template cast< double >();
-    output.resize( input.size() );
-    output.shrink_to_fit();
-
-    std::transform( input.begin(), input.end(), std::back_inserter( output ),
+    pointCloud tmp;
+    std::transform( input.begin(), input.end(), std::back_inserter( tmp ),
                     [ & ]( auto const& inputPnt ) {
                       pt[ 0 ] = inputPnt.x;
                       pt[ 1 ] = inputPnt.y;
@@ -129,6 +127,7 @@ namespace PCF {
 
                       return Point( ptT[ 0 ], ptT[ 1 ], ptT[ 2 ] );
                     } );
+    output = std::move( tmp );
   }
 
   inline bool IterativeClosestPoint::hasConverged(
