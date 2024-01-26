@@ -11,26 +11,30 @@ namespace PCF {
   class KDtreeFlann
   {
   public:
-    KDtreeFlann( pointCloud _input );
+    explicit KDtreeFlann( pointCloud input );
 
     KDtreeFlann();
 
-    ~KDtreeFlann();
+    KDtreeFlann( const KDtreeFlann& )            = default;
+    KDtreeFlann( KDtreeFlann&& )                 = delete;
+    KDtreeFlann& operator=( const KDtreeFlann& ) = default;
+    KDtreeFlann& operator=( KDtreeFlann&& )      = delete;
+    ~KDtreeFlann()                               = default;
 
-    int knnSearch( Point _point, size_t _k,
+    int knnSearch( Point point, size_t k,
                    std::vector< size_t >& pointIdxKSearch,
                    std::vector< double >& pointKSquaredDistance );
 
-    void setInputCloud( pointCloud _input );
+    void setInputCloud( pointCloud input );
 
-    int radiusSearch( Point _point, double _radius,
-                      std::vector< size_t >& indices_radius,
-                      std::vector< double >& dists_radius );
+    int radiusSearch( Point point, double radius,
+                      std::vector< size_t >& indicesRadius,
+                      std::vector< double >& distsRadius );
 
   private:
-    std::vector< double > input, queryPt;
+    std::vector< double > input_, queryPt_;
 
-    size_t dim = 3, original_points;
+    size_t dim_ = 3, originalPoints_;
 
     FLANNIndex* flann_index_;
 
