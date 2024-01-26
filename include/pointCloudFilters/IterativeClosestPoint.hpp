@@ -5,55 +5,54 @@
 #include <Eigen/Core>
 #include <Eigen/Eigenvalues>
 
-namespace {
-  struct Correspondence
+struct Correspondence
+{
+  /** \brief Index of the query (source) point. */
+  unsigned long indexQuery;
+  /** \brief Index of the matching (target) point. Set to -1 if no
+   * correspondence found. */
+  unsigned long indexMatch;
+  /** \brief Distance between the corresponding points, or the weight denoting
+   * the confidence in correspondence estimation */
+  double distanceOrWeight;
+
+  /** \brief Standard constructor.
+   * Sets \ref index_query to 0, \ref index_match to -1, and \ref distance to
+   * FLT_MAX.
+   */
+  inline Correspondence()
+    : indexQuery( 0 ), indexMatch( -1 ),
+      distanceOrWeight( std::numeric_limits< double >::max() )
   {
-    /** \brief Index of the query (source) point. */
-    int index_query;
-    /** \brief Index of the matching (target) point. Set to -1 if no
-     * correspondence found. */
-    int index_match;
-    /** \brief Distance between the corresponding points, or the weight denoting
-     * the confidence in correspondence estimation */
-    union
-    {
-      double distance;
-      double weight;
-    };
+  }
 
-    /** \brief Standard constructor.
-     * Sets \ref index_query to 0, \ref index_match to -1, and \ref distance to
-     * FLT_MAX.
-     */
-    inline Correspondence()
-      : index_query( 0 ), index_match( -1 ),
-        distance( std::numeric_limits< double >::max() )
-    {
-    }
+  Correspondence( const Correspondence& )            = default;
+  Correspondence( Correspondence&& )                 = delete;
+  Correspondence& operator=( const Correspondence& ) = default;
+  Correspondence& operator=( Correspondence&& )      = delete;
+  inline Correspondence( int indexQuery, int indexMatch,
+                         double distanceOrWeight )
+    : indexQuery( indexQuery ), indexMatch( indexMatch ),
+      distanceOrWeight( distanceOrWeight )
+  {
+  }
 
-    inline Correspondence( int _index_query, int _index_match,
-                           double _distance )
-      : index_query( _index_query ), index_match( _index_match ),
-        distance( _distance )
-    {
-    }
+  virtual ~Correspondence() = default;
 
-    virtual ~Correspondence() {}
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
 
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  };
-} // namespace
 namespace PCF {
   class IterativeClosestPoint
   {
   public:
     IterativeClosestPoint();
 
-    ~IterativeClosestPoint();
+    ~IterativeClosestPoint() = default;
 
-    bool converged = false;
+    [[nodiscard]] bool isConverged() const { return converged_; }
 
-    void align( double max_distance, size_t maxIteration, pointCloud& source,
+    void align( double maxDistance, size_t maxIteration, pointCloud& source,
                 pointCloud target, pointCloud& output );
 
     Eigen::Matrix4d getTxMatrix() { return transformation_matrix_; }
@@ -62,21 +61,22 @@ namespace PCF {
     Eigen::Matrix4d transformation_matrix_ = Eigen::Matrix4d::Identity();
     double correspondences_prev_mse_;
 
-    inline bool hasConverged( size_t iterations_, size_t max_iterations_,
-                              Eigen::Matrix4d& transformation_,
+    inline bool hasConverged( size_t iterations, size_t maxIterations,
                               std::vector< Correspondence > correspondences );
 
     inline void
       determineCorrespondences( std::vector< Correspondence >& correspondences,
-                                double max_distance, pointCloud input,
+                                double maxDistance, pointCloud input,
                                 pointCloud target );
 
     inline void estimateRigidTransformation(
       pointCloud input, pointCloud target,
       std::vector< Correspondence > correspondences,
-      Eigen::Matrix4d& transformation_matrix );
+      Eigen::Matrix4d& transformationMatrix );
 
     inline void transformCloud( pointCloud& input, pointCloud& output,
                                 const Eigen::Matrix4d& transform );
+
+    bool converged_ = false;
   };
 } // namespace PCF

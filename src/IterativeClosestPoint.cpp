@@ -1,22 +1,21 @@
-
+#include <algorithm>
+#include <iterator>
+#include <numeric>
 #include <pointCloudFilters/IterativeClosestPoint.hpp>
 #include <pointCloudFilters/KdtreeFlann.hpp>
 
 namespace PCF {
   IterativeClosestPoint::IterativeClosestPoint()
+    : correspondences_prev_mse_( std::numeric_limits< double >::max() )
   {
-
-    correspondences_prev_mse_ = ( std::numeric_limits< double >::max() );
   }
 
-  IterativeClosestPoint::~IterativeClosestPoint() {}
-
-  void IterativeClosestPoint::align( double max_distance, size_t maxIterations,
+  void IterativeClosestPoint::align( double maxDistance, size_t maxIterations,
                                      pointCloud& source, pointCloud target,
                                      pointCloud& output )
   {
-    Eigen::Matrix4d transformation_matrix = Eigen::Matrix4d::Identity();
-    Eigen::Matrix4d final_transformation_ = Eigen::Matrix4d::Identity();
+    Eigen::Matrix4d transformationMatrix = Eigen::Matrix4d::Identity();
+    Eigen::Matrix4d finalTransformation  = Eigen::Matrix4d::Identity();
 
     size_t iteration = 0;
 
@@ -24,147 +23,155 @@ namespace PCF {
 
     do {
       std::vector< Correspondence > correspondences;
-      determineCorrespondences( correspondences, max_distance, source, target );
+      determineCorrespondences( correspondences, maxDistance, source, target );
 
       estimateRigidTransformation( source, target, correspondences,
-                                   transformation_matrix );
+                                   transformationMatrix );
       ++iteration;
-      final_transformation_ = transformation_matrix * final_transformation_;
-      transformCloud( source, source, transformation_matrix );
-      converged = hasConverged( iteration, maxIterations, transformation_matrix,
-                                correspondences );
-    } while( !converged );
-    transformCloud( source, output, transformation_matrix );
+      finalTransformation = transformationMatrix * finalTransformation;
+      transformCloud( source, source, transformationMatrix );
+      converged_ = hasConverged( iteration, maxIterations, correspondences );
+    } while( !converged_ );
+    transformCloud( source, output, transformationMatrix );
   }
 
   inline void IterativeClosestPoint::determineCorrespondences(
-    std::vector< Correspondence >& correspondences, double max_distance,
+    std::vector< Correspondence >& correspondences, double maxDistance,
     pointCloud input, pointCloud target )
   {
-    double max_dist_sqr = max_distance * max_distance;
+    double maxDistSqr = maxDistance * maxDistance;
 
     correspondences.resize( input.size() );
 
     std::vector< long unsigned int > index( 1 );
     std::vector< double > distance( 1 );
     Correspondence corr;
-    size_t nr_valid_correspondences = 0;
-    KDtreeFlann tree_( target );
+    size_t nrValidCorrespondences = 0;
+    KDtreeFlann tree( target );
 
     for( size_t i = 0; i < input.size(); i++ ) {
-      tree_.knnSearch( input[ i ], 1, index, distance );
-      if( distance[ 0 ] > max_dist_sqr )
+      tree.knnSearch( input[ i ], 1, index, distance );
+      if( distance[ 0 ] > maxDistSqr ) {
         continue;
+      }
 
-      corr.index_query                              = i;
-      corr.index_match                              = index[ 0 ];
-      corr.distance                                 = distance[ 0 ];
-      correspondences[ nr_valid_correspondences++ ] = corr;
+      corr.indexQuery                             = i;
+      corr.indexMatch                             = index[ 0 ];
+      corr.distanceOrWeight                       = distance[ 0 ];
+      correspondences[ nrValidCorrespondences++ ] = corr;
     }
 
-    correspondences.resize( nr_valid_correspondences );
+    correspondences.resize( nrValidCorrespondences );
   }
 
   inline void IterativeClosestPoint::estimateRigidTransformation(
     pointCloud input, pointCloud target,
     std::vector< Correspondence > correspondences,
-    Eigen::Matrix4d& transformation_matrix )
+    Eigen::Matrix4d& transformationMatrix )
   {
-    std::vector< int > source_it;
-    std::vector< int > target_it;
+    std::vector< unsigned long > sourceIt;
+    std::vector< unsigned long > targetIt;
 
-    for( auto indexIt = correspondences.begin();
-         indexIt != correspondences.end(); ++indexIt )
-      source_it.push_back( indexIt->index_query );
+    for( auto& correspondence : correspondences ) {
+      sourceIt.push_back( correspondence.indexQuery );
+    }
 
-    for( auto indexIt = correspondences.begin();
-         indexIt != correspondences.end(); ++indexIt )
-      target_it.push_back( indexIt->index_match );
+    for( auto& correspondence : correspondences ) {
+      targetIt.push_back( correspondence.indexMatch );
+    }
 
     // Convert to Eigen format
-    const int npts = static_cast< int >( source_it.size() );
+    const int npts = static_cast< int >( sourceIt.size() );
 
-    Eigen::Matrix< double, 3, Eigen::Dynamic > cloud_src( 3, npts );
-    Eigen::Matrix< double, 3, Eigen::Dynamic > cloud_tgt( 3, npts );
-    int src = 0, trgt = 0;
+    Eigen::Matrix< double, 3, Eigen::Dynamic > srcPts( 3, npts );
+    Eigen::Matrix< double, 3, Eigen::Dynamic > tgt( 3, npts );
+
+    Eigen::Matrix< double, 3, Eigen::Dynamic > cloudSrc( 3, npts );
+    Eigen::Matrix< double, 3, Eigen::Dynamic > cloudTgt( 3, npts );
+
+    int src  = 0;
+    int trgt = 0;
     for( int i = 0; i < npts; ++i ) {
-      cloud_src( 0, i ) = input[ source_it[ src ] ].x;
-      cloud_src( 1, i ) = input[ source_it[ src ] ].y;
-      cloud_src( 2, i ) = input[ source_it[ src ] ].z;
+      cloudSrc( 0, i ) = input[ sourceIt[ src ] ].x;
+      cloudSrc( 1, i ) = input[ sourceIt[ src ] ].y;
+      cloudSrc( 2, i ) = input[ sourceIt[ src ] ].z;
       ++src;
 
-      cloud_tgt( 0, i ) = target[ target_it[ trgt ] ].x;
-      cloud_tgt( 1, i ) = target[ target_it[ trgt ] ].y;
-      cloud_tgt( 2, i ) = target[ target_it[ trgt ] ].z;
+      cloudTgt( 0, i ) = target[ targetIt[ trgt ] ].x;
+      cloudTgt( 1, i ) = target[ targetIt[ trgt ] ].y;
+      cloudTgt( 2, i ) = target[ targetIt[ trgt ] ].z;
       ++trgt;
     }
 
     // Call Umeyama directly from Eigen
-    transformation_matrix = Eigen::umeyama( cloud_src, cloud_tgt, false );
-    if( transformation_matrix != Eigen::Matrix4d::Identity() )
-      transformation_matrix_ = transformation_matrix_ * transformation_matrix;
+    transformationMatrix = Eigen::umeyama( cloudSrc, cloudTgt, false );
+    if( transformationMatrix != Eigen::Matrix4d::Identity() ) {
+      transformation_matrix_ = transformation_matrix_ * transformationMatrix;
+    }
   }
 
   inline void IterativeClosestPoint::transformCloud(
     pointCloud& input, pointCloud& output, const Eigen::Matrix4d& transform )
   {
-    Eigen::Vector4d pt( 0.0f, 0.0f, 0.0f, 1.0f ), pt_t;
+    Eigen::Vector4d pt( 0.0f, 0.0f, 0.0f, 1.0f );
+    Eigen::Vector4d ptT;
     Eigen::Matrix4d tr = transform.template cast< double >();
-    output             = input;
+    output.resize( input.size() );
+    output.shrink_to_fit();
 
-    for( size_t i = 0; i < input.size(); ++i ) {
-      pt[ 0 ] = input[ i ].x;
-      pt[ 1 ] = input[ i ].y;
-      pt[ 2 ] = input[ i ].z;
+    std::transform( input.begin(), input.end(), std::back_inserter( output ),
+                    [ & ]( auto const& inputPnt ) {
+                      pt[ 0 ] = inputPnt.x;
+                      pt[ 1 ] = inputPnt.y;
+                      pt[ 2 ] = inputPnt.z;
 
-      pt_t = tr * pt;
+                      ptT = tr * pt;
 
-      output[ i ].x = pt_t[ 0 ];
-      output[ i ].y = pt_t[ 1 ];
-      output[ i ].z = pt_t[ 2 ];
-    }
+                      return Point( ptT[ 0 ], ptT[ 1 ], ptT[ 2 ] );
+                    } );
   }
 
   inline bool IterativeClosestPoint::hasConverged(
-    size_t iterations_, size_t max_iterations_,
-    Eigen::Matrix4d& transformation_,
+    size_t iterations, size_t maxIterations,
     std::vector< Correspondence > correspondences )
   {
-    double correspondences_cur_mse_( std::numeric_limits< double >::max() );
-    double rotation_threshold_( 0.99999 );    // 0.256 degrees
-    double translation_threshold_( 0.0003f ); // 0.0003 meters
-    double mse_threshold_relative_(
+    double correspondencesCurMse( std::numeric_limits< double >::max() );
+    double rotationThreshold( 0.99999 );    // 0.256 degrees
+    double translationThreshold( 0.0003f ); // 0.0003 meters
+    double mseThresholdRelative(
       0.00001 ); // 0.001% of the previous MSE (relative error)
-    double mse_threshold_absolute_( 1e-12 ); // MSE (absolute error)
-    int iterations_similar_transforms_( 0 ),
-      max_iterations_similar_transforms_( 1 );
+    double mseThresholdAbsolute( 1e-12 ); // MSE (absolute error)
+    int iterationsSimilarTransforms( 0 );
+    int maxIterationsSimilarTransforms( 1 );
 
     // Number of iterations has reached the maximum user imposed number of
     // iterations
-    if( iterations_ <= max_iterations_ ) {
-      correspondences_cur_mse_ = 0;
+    if( iterations <= maxIterations ) {
+      correspondencesCurMse = 0;
 
-      for( size_t i = 0; i < correspondences.size(); ++i )
-        correspondences_cur_mse_ += correspondences[ i ].distance;
-      correspondences_cur_mse_ /= double( correspondences.size() );
+      correspondencesCurMse =
+        std::accumulate( correspondences.begin(), correspondences.end(),
+                         double{}, []( double acc, Correspondence const& p ) {
+                           return acc + p.distanceOrWeight;
+                         } );
+
+      correspondencesCurMse /= static_cast< double >( correspondences.size() );
 
       // Relative
-      if( fabs( correspondences_cur_mse_ - correspondences_prev_mse_ ) /
+      if( fabs( correspondencesCurMse - correspondences_prev_mse_ ) /
             correspondences_prev_mse_ <
-          mse_threshold_relative_ ) {
-        if( iterations_similar_transforms_ <
-            max_iterations_similar_transforms_ ) {
+          mseThresholdRelative ) {
+        if( iterationsSimilarTransforms < maxIterationsSimilarTransforms ) {
           // Increment the number of transforms that the thresholds are allowed
           // to be similar
-          ++iterations_similar_transforms_;
+          ++iterationsSimilarTransforms;
           return ( false );
-        } else {
-          iterations_similar_transforms_ = 0;
-          return ( true );
         }
+        iterationsSimilarTransforms = 0;
+        return ( true );
       }
 
-      correspondences_prev_mse_ = correspondences_cur_mse_;
+      correspondences_prev_mse_ = correspondencesCurMse;
       return ( false );
     }
     return ( true );
