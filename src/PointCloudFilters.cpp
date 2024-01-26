@@ -12,6 +12,8 @@
 --------------------------------------------------------------------------
 */
 
+#include <math.h>
+
 #include <algorithm>
 #include <cfloat>
 #include <numeric>
@@ -19,73 +21,71 @@
 #include <pointCloudFilters/PointCloudFilters.hpp>
 namespace PCF {
 
-  Filter3D::Filter3D()
-  {
-    x_passthough_limits_set = false;
-    y_passthough_limits_set = false;
-    z_passthough_limits_set = false;
-  }
+  Filter3D::Filter3D() = default;
 
-  Filter3D::~Filter3D() {}
+  Filter3D::~Filter3D() = default;
 
-  void Filter3D::statisticalOutlierRemoval( size_t _k, pointCloud input_,
+  void Filter3D::statisticalOutlierRemoval( size_t k, pointCloud input,
                                             pointCloud& output )
   {
     KDtreeFlann tree;
 
-    tree.setInputCloud( input_ );
+    tree.setInputCloud( input );
     std::vector< size_t > indices;
-    size_t size     = input_.size();
-    double std_mul_ = 1.0;
+    size_t size   = input.size();
+    double stdMul = 1.0;
 
-    std::vector< size_t > nn_indices( _k );
-    std::vector< double > nn_dists( _k );
+    std::vector< size_t > nnIndices( k );
+    std::vector< double > nnDists( k );
     std::vector< double > distances;
     distances.reserve( size );
     indices.resize( size );
-    size_t oii = 0,
-           rii =
-             0; // oii = output indices iterator, rii = removed indices iterator
+
+    // oii = output indices iterator, rii = removed indices iterator
+    size_t oii = 0;
+    size_t rii = 0;
 
     // First pass: Compute the mean distances for all points with respect to
     // their k nearest neighbours
-    size_t valid_distances = 0;
+    size_t validDistances = 0;
     for( size_t iii = 0; iii < size; ++iii ) // iii = input indices iterator
     {
       // Perform the nearest k search
-      tree.knnSearch( input_[ iii ], _k, nn_indices, nn_dists );
+      tree.knnSearch( input[ iii ], k, nnIndices, nnDists );
 
       // Calculate the mean distance to its neighbours
-      double dist_sum = 0.0;
-      for( int it = 1; it < _k; ++it ) // k = 0 is the query point
-        dist_sum += sqrt( nn_dists[ it ] );
-      distances[ iii ] = static_cast< double >( dist_sum / _k );
-      valid_distances++;
+      double distSum = 0.0;
+      for( int it = 1; it < k; ++it ) { // k = 0 is the query point
+        distSum += sqrt( nnDists[ it ] );
+      }
+      distances[ iii ] = static_cast< double >( distSum / k );
+      validDistances++;
     }
 
     // Estimate the mean and the standard deviation of the distance vector
-    double sum = 0, sq_sum = 0;
+    double sum   = 0;
+    double sqSum = 0;
 
-    sum    = std::accumulate( distances.begin(), distances.end(), 0 );
-    sq_sum = std::accumulate( distances.begin(), distances.end(), 0,
-                              []( const double& lhs, const double& rhs ) {
-                                return ( lhs + ( rhs * rhs ) );
-                              } );
+    sum   = std::accumulate( distances.begin(), distances.end(), 0 );
+    sqSum = std::accumulate( distances.begin(), distances.end(), 0,
+                             []( const double& lhs, const double& rhs ) {
+                               return ( lhs + ( rhs * rhs ) );
+                             } );
 
-    double mean = sum / static_cast< double >( valid_distances );
+    double mean = sum / static_cast< double >( validDistances );
     double variance =
-      ( sq_sum - sum * sum / static_cast< double >( valid_distances ) ) /
-      ( static_cast< double >( valid_distances ) - 1 );
+      ( sqSum - sum * sum / static_cast< double >( validDistances ) ) /
+      ( static_cast< double >( validDistances ) - 1 );
     double stddev = std::sqrt( variance );
 
-    double distance_threshold = mean + std_mul_ * stddev;
+    double distanceThreshold = mean + stdMul * stddev;
 
     // Second pass: Classify the points on the computed distance threshold
-    for( size_t iii = 0; iii < static_cast< int >( input_.size() );
+    for( size_t iii = 0; iii < static_cast< int >( input.size() );
          ++iii ) // iii = input indices iterator
     {
       // Points having a too high average distance are outliers
-      if( distances[ iii ] < distance_threshold )
+      if( distances[ iii ] < distanceThreshold )
         // Otherwise it was a normal point for output (inlier)
         indices[ oii++ ] = iii;
     }
@@ -93,99 +93,105 @@ namespace PCF {
     // Resize the output arrays
     indices.resize( oii );
     for( size_t i = 0; i < indices.size(); i++ ) {
-      output[ i ].x = input_[ indices[ i ] ].x;
-      output[ i ].y = input_[ indices[ i ] ].y;
-      output[ i ].z = input_[ indices[ i ] ].z;
+      output[ i ].x = input[ indices[ i ] ].x;
+      output[ i ].y = input[ indices[ i ] ].y;
+      output[ i ].z = input[ indices[ i ] ].z;
     }
     output.erase( output.begin() + indices.size(), output.end() );
     output.shrink_to_fit();
   }
 
-  void Filter3D::voxelFilter( pointCloud input_, double _Delta,
+  void Filter3D::voxelFilter( pointCloud input, double Delta,
                               pointCloud& output )
   {
-    size_t size = input_.size();
+    size_t size = input.size();
     output.resize( size );
-    Eigen::Vector4i min_b_, max_b_, div_b_, divb_mul_;
-    Eigen::Array4d min_p, max_p;
-    min_p.setConstant( FLT_MAX );
-    max_p.setConstant( -FLT_MAX );
+    Eigen::Vector4i minB;
+    Eigen::Vector4i maxB;
+    Eigen::Vector4i divB;
+    Eigen::Vector4i divbMul;
+    Eigen::Array4d minP;
+    Eigen::Array4d maxP;
+    minP.setConstant( FLT_MAX );
+    maxP.setConstant( -FLT_MAX );
 
     for( size_t i = 0; i < size; ++i ) {
       Eigen::Array4d pt;
-      pt[ 0 ] = input_[ i ].x;
-      pt[ 1 ] = input_[ i ].y;
-      pt[ 2 ] = input_[ i ].z;
+      pt[ 0 ] = input[ i ].x;
+      pt[ 1 ] = input[ i ].y;
+      pt[ 2 ] = input[ i ].z;
 
-      min_p = min_p.min( pt );
-      max_p = max_p.max( pt );
+      minP = minP.min( pt );
+      maxP = maxP.max( pt );
     }
 
     for( size_t i = 0; i < size; i++ ) {
-      double pos_x, pos_y, pos_z;
-      int abs_x, abs_y, abs_z;
+      double posX = 0.0f;
+      double posY = 0.0f;
+      double posZ = 0.0f;
+      int absX    = 0;
+      int absY    = 0;
+      int absZ    = 0;
 
       // calculate the relative world co-ordinate position from minimum point
-      pos_x = min_p[ 0 ] - input_[ i ].x;
-      pos_y = min_p[ 1 ] - input_[ i ].y;
-      pos_z = min_p[ 2 ] - input_[ i ].z;
+      posX = minP[ 0 ] - input[ i ].x;
+      posY = minP[ 1 ] - input[ i ].y;
+      posZ = minP[ 2 ] - input[ i ].z;
 
       /* calculate the number of grid required to reach the point from
       minimum point in respective axis direction*/
-      abs_x = std::abs( std::ceil( pos_x / _Delta ) );
-      abs_y = std::abs( std::ceil( pos_y / _Delta ) );
-      abs_z = std::abs( std::ceil( pos_z / _Delta ) );
+      absX = std::abs( std::ceil( posX / Delta ) );
+      absY = std::abs( std::ceil( posY / Delta ) );
+      absZ = std::abs( std::ceil( posZ / Delta ) );
 
-      output[ i ].x = floor( abs_x * _Delta - min_p[ 0 ] );
-      output[ i ].y = floor( abs_y * _Delta - min_p[ 1 ] );
-      output[ i ].z = floor( abs_z * _Delta - min_p[ 2 ] );
+      output[ i ].x = floor( absX * Delta - minP[ 0 ] );
+      output[ i ].y = floor( absY * Delta - minP[ 1 ] );
+      output[ i ].z = floor( absZ * Delta - minP[ 2 ] );
     }
 
     // Compute the minimum and maximum bounding box values
-    min_b_[ 0 ] = static_cast< int >( floor( min_p[ 0 ] / _Delta ) );
-    max_b_[ 0 ] = static_cast< int >( floor( max_p[ 0 ] / _Delta ) );
-    min_b_[ 1 ] = static_cast< int >( floor( min_p[ 1 ] / _Delta ) );
-    max_b_[ 1 ] = static_cast< int >( floor( max_p[ 1 ] / _Delta ) );
-    min_b_[ 2 ] = static_cast< int >( floor( min_p[ 2 ] / _Delta ) );
-    max_b_[ 2 ] = static_cast< int >( floor( max_p[ 2 ] / _Delta ) );
+    minB[ 0 ] = static_cast< int >( floor( minP[ 0 ] / Delta ) );
+    maxB[ 0 ] = static_cast< int >( floor( maxP[ 0 ] / Delta ) );
+    minB[ 1 ] = static_cast< int >( floor( minP[ 1 ] / Delta ) );
+    maxB[ 1 ] = static_cast< int >( floor( maxP[ 1 ] / Delta ) );
+    minB[ 2 ] = static_cast< int >( floor( minP[ 2 ] / Delta ) );
+    maxB[ 2 ] = static_cast< int >( floor( maxP[ 2 ] / Delta ) );
 
     // Compute the number of divisions needed along all axis
-    div_b_      = max_b_ - min_b_ + Eigen::Vector4i::Ones();
-    div_b_[ 3 ] = 0;
+    divB      = maxB - minB + Eigen::Vector4i::Ones();
+    divB[ 3 ] = 0;
 
     // Set up the division multiplier
-    divb_mul_ = Eigen::Vector4i( 1, div_b_[ 0 ], div_b_[ 0 ] * div_b_[ 1 ], 0 );
+    divbMul = Eigen::Vector4i( 1, divB[ 0 ], divB[ 0 ] * divB[ 1 ], 0 );
 
     // Storage for mapping leaf and pointcloud indexes
-    std::vector< cloud_point_index_idx > index_vector;
-    index_vector.reserve( size );
+    std::vector< CloudPointIndexIdx > indexVector;
+    indexVector.reserve( size );
 
     for( size_t it = 0; it < size; it++ ) {
-      int ijk0 = static_cast< int >( floor( input_[ it ].x / _Delta ) -
-                                     static_cast< double >( min_b_[ 0 ] ) );
-      int ijk1 = static_cast< int >( floor( input_[ it ].y / _Delta ) -
-                                     static_cast< double >( min_b_[ 1 ] ) );
-      int ijk2 = static_cast< int >( floor( input_[ it ].z / _Delta ) -
-                                     static_cast< double >( min_b_[ 2 ] ) );
+      int ijk0 = static_cast< int >( floor( input[ it ].x / Delta ) -
+                                     static_cast< double >( minB[ 0 ] ) );
+      int ijk1 = static_cast< int >( floor( input[ it ].y / Delta ) -
+                                     static_cast< double >( minB[ 1 ] ) );
+      int ijk2 = static_cast< int >( floor( input[ it ].z / Delta ) -
+                                     static_cast< double >( minB[ 2 ] ) );
 
       // Compute the centroid leaf index
-      int idx =
-        ijk0 * divb_mul_[ 0 ] + ijk1 * divb_mul_[ 1 ] + ijk2 * divb_mul_[ 2 ];
-      index_vector.push_back(
-        cloud_point_index_idx( static_cast< size_t >( idx ), it ) );
+      int idx = ijk0 * divbMul[ 0 ] + ijk1 * divbMul[ 1 ] + ijk2 * divbMul[ 2 ];
+      indexVector.emplace_back( static_cast< size_t >( idx ), it );
     }
-    auto compare = []( const cloud_point_index_idx& lhs,
-                       const cloud_point_index_idx& rhs ) {
+    auto compare = []( const CloudPointIndexIdx& lhs,
+                       const CloudPointIndexIdx& rhs ) {
       return ( lhs.idx == rhs.idx );
     };
 
-    auto predict = []( const cloud_point_index_idx& lhs,
-                       const cloud_point_index_idx& rhs ) {
+    auto predict = []( const CloudPointIndexIdx& lhs,
+                       const CloudPointIndexIdx& rhs ) {
       return lhs.idx < rhs.idx;
     };
 
-    std::sort( index_vector.begin(), index_vector.end(),
-               std::less< cloud_point_index_idx >() );
+    std::sort( indexVector.begin(), indexVector.end(),
+               std::less< CloudPointIndexIdx >() );
 
     // Third pass: count output cells
     // we need to skip all the same, adjacent idx values
@@ -194,38 +200,40 @@ namespace PCF {
     // first_and_last_indices_vector[i] represents the index in index_vector of
     // the first point in index_vector belonging to the voxel which corresponds
     // to the i-th output point, and of the first point not belonging to.
-    std::vector< std::pair< size_t, size_t > > first_and_last_indices_vector;
+    std::vector< std::pair< size_t, size_t > > firstAndLastIndicesVector;
     // Worst case size
-    first_and_last_indices_vector.reserve( index_vector.size() );
-    while( index < index_vector.size() ) {
+    firstAndLastIndicesVector.reserve( indexVector.size() );
+    while( index < indexVector.size() ) {
       size_t i = index + 1;
-      while( i < index_vector.size() &&
-             index_vector[ i ].idx == index_vector[ index ].idx )
+      while( i < indexVector.size() &&
+             indexVector[ i ].idx == indexVector[ index ].idx ) {
         ++i;
+      }
       if( i - index >= 0 ) {
         ++total;
-        first_and_last_indices_vector.push_back(
-          std::pair< size_t, size_t >( index, i ) );
+        firstAndLastIndicesVector.emplace_back( index, i );
       }
       index = i;
     }
     output.resize( total );
 
     index = 0;
-    for( size_t cp = 0; cp < first_and_last_indices_vector.size(); ++cp ) {
+    for( auto& cp : firstAndLastIndicesVector ) {
       // calculate centroid - sum values from all input points, that have the
       // same idx value in index_vector array
-      size_t first_index = first_and_last_indices_vector[ cp ].first;
-      size_t last_index  = first_and_last_indices_vector[ cp ].second;
+      size_t firstIndex = cp.first;
+      size_t lastIndex  = cp.second;
 
-      double x( 0.0f ), y( 0.0f ), z( 0.0f );
+      double x( 0.0f );
+      double y( 0.0f );
+      double z( 0.0f );
 
       // fill in the accumulator with leaf points
       size_t counter( 0 );
-      for( size_t li = first_index; li < last_index; ++li ) {
-        x = x + input_[ index_vector[ li ].cloud_point_index ].x;
-        y = y + input_[ index_vector[ li ].cloud_point_index ].y;
-        z = z + input_[ index_vector[ li ].cloud_point_index ].z;
+      for( size_t li = firstIndex; li < lastIndex; ++li ) {
+        x = x + input[ indexVector[ li ].cloudPointIndex ].x;
+        y = y + input[ indexVector[ li ].cloudPointIndex ].y;
+        z = z + input[ indexVector[ li ].cloudPointIndex ].z;
         ++counter;
       }
 
@@ -238,96 +246,103 @@ namespace PCF {
     output.shrink_to_fit();
   }
 
-  double Filter3D::getMean( size_t _k, pointCloud input_ )
+  double Filter3D::getMean( size_t k, pointCloud input )
   {
     KDtreeFlann tree;
 
-    tree.setInputCloud( input_ );
+    tree.setInputCloud( input );
     std::vector< size_t > indices;
-    size_t size     = input_.size();
-    double std_mul_ = 1.0;
+    size_t size   = input.size();
+    double stdMul = 1.0;
 
     // The arrays to be used
-    std::vector< size_t > nn_indices( _k );
-    std::vector< double > nn_dists( _k );
+    std::vector< size_t > nnIndices( k );
+    std::vector< double > nnDists( k );
     std::vector< double > distances( size );
     indices.resize( size );
-    size_t oii = 0,
-           rii =
-             0; // oii = output indices iterator, rii = removed indices iterator
+
+    // oii = output indices iterator, rii = removed indices iterator
+    size_t oii = 0;
+    size_t rii = 0;
 
     // First pass: Compute the mean distances for all points with respect to
     // their k nearest neighbours
-    size_t valid_distances = 0;
+    size_t validDistances = 0;
     for( size_t iii = 0; iii < size; ++iii ) // iii = input indices iterator
     {
       // Perform the nearest k search
-      tree.knnSearch( input_[ iii ], _k, nn_indices, nn_dists );
+      tree.knnSearch( input[ iii ], k, nnIndices, nnDists );
 
       // Calculate the mean distance to its neighbours
-      double dist_sum = 0.0;
-      for( size_t it = 1; it < _k; ++it ) // k = 0 is the query point
-        dist_sum += sqrt( nn_dists[ it ] );
-      distances[ iii ] = static_cast< double >( dist_sum / _k );
-      valid_distances++;
+      double distSum = 0.0;
+      for( size_t it = 1; it < k; ++it ) { // k = 0 is the query point
+        distSum += sqrt( nnDists[ it ] );
+      }
+      distances[ iii ] = static_cast< double >( distSum / k );
+      validDistances++;
     }
 
     // Estimate the mean and the standard deviation of the distance vector
-    double sum = 0, sq_sum = 0;
-    sum    = std::accumulate( distances.begin(), distances.end(), 0 );
-    sq_sum = std::accumulate( distances.begin(), distances.end(), 0,
-                              []( const double& lhs, const double& rhs ) {
-                                return ( lhs + ( rhs * rhs ) );
-                              } );
+    double sum   = 0;
+    double sqSum = 0;
+    sum          = std::accumulate( distances.begin(), distances.end(), 0 );
+    sqSum        = std::accumulate( distances.begin(), distances.end(), 0,
+                                    []( const double& lhs, const double& rhs ) {
+                               return ( lhs + ( rhs * rhs ) );
+                             } );
 
-    double mean = sum / static_cast< double >( valid_distances );
+    double mean = sum / static_cast< double >( validDistances );
     double variance =
-      ( sq_sum - sum * sum / static_cast< double >( valid_distances ) ) /
-      ( static_cast< double >( valid_distances ) - 1 );
+      ( sqSum - sum * sum / static_cast< double >( validDistances ) ) /
+      ( static_cast< double >( validDistances ) - 1 );
     double stddev = sqrt( variance );
-    return ( mean + std_mul_ * stddev );
+    return ( mean + stdMul * stddev );
   }
 
-  void Filter3D::MakeSmoothPointCloud( size_t _k, double smoothingFactor,
-                                       pointCloud input_, pointCloud& output )
+  void Filter3D::makeSmoothPointCloud( size_t k, double smoothingFactor,
+                                       pointCloud input, pointCloud& output )
   {
     KDtreeFlann tree;
 
-    tree.setInputCloud( input_ );
+    tree.setInputCloud( input );
     std::vector< size_t > indices;
-    size_t size     = input_.size();
-    double std_mul_ = 1.0;
+    size_t size   = input.size();
+    double stdMul = 1.0;
 
     // The arrays to be used
-    std::vector< double > avgX( size ), avgY( size ), avgZ( size );
-    std::vector< size_t > nn_indices( _k );
-    std::vector< double > nn_dists( _k );
-    std::vector< size_t > indices_radius( 1 );
-    std::vector< double > dists_radius( 1 );
+    std::vector< double > avgX( size );
+    std::vector< double > avgY( size );
+    std::vector< double > avgZ( size );
+    std::vector< size_t > nnIndices( k );
+    std::vector< double > nnDists( k );
+    std::vector< size_t > indicesRadius( 1 );
+    std::vector< double > distRadius( 1 );
     std::vector< double > distances( size );
     indices.resize( size );
-    size_t oii = 0,
-           rii =
-             0; // oii = output indices iterator, rii = removed indices iterator
+
+    // oii = output indices iterator, rii = removed indices iterator
+    size_t oii = 0;
+    size_t rii = 0;
 
     // First pass: Compute the mean distances for all points with respect to
     // their k nearest neighbours
-    size_t valid_distances = 0;
+    size_t validDistances = 0;
     for( size_t iii = 0; iii < size; ++iii ) // iii = input indices iterator
     {
       // Perform the nearest k search
-      tree.knnSearch( input_[ iii ], _k, nn_indices, nn_dists );
+      tree.knnSearch( input[ iii ], k, nnIndices, nnDists );
 
       // Calculate the mean distance to its neighbours
-      double dist_sum = 0.0;
-      for( int it = 1; it < _k; ++it ) // k = 0 is the query point
-        dist_sum += sqrt( nn_dists[ it ] );
-      distances[ iii ] = static_cast< double >( dist_sum / _k );
-      valid_distances++;
+      double distSum = 0.0;
+      for( int it = 1; it < k; ++it ) // k = 0 is the query point
+        distSum += sqrt( nnDists[ it ] );
+      distances[ iii ] = static_cast< double >( distSum / k );
+      validDistances++;
     }
 
     // Estimate the mean and the standard deviation of the distance vector
-    double sum = 0, sq_sum = 0;
+    double sum    = 0;
+    double sq_sum = 0;
 
     sum    = std::accumulate( distances.begin(), distances.end(), 0 );
     sq_sum = std::accumulate( distances.begin(), distances.end(), 0,
@@ -335,33 +350,34 @@ namespace PCF {
                                 return ( lhs + ( rhs * rhs ) );
                               } );
 
-    double mean = sum / static_cast< double >( valid_distances );
+    double mean = sum / static_cast< double >( validDistances );
 
     double variance =
-      ( sq_sum - sum * sum / static_cast< double >( valid_distances ) ) /
-      ( static_cast< double >( valid_distances ) - 1 );
+      ( sq_sum - sum * sum / static_cast< double >( validDistances ) ) /
+      ( static_cast< double >( validDistances ) - 1 );
 
     double stddev = sqrt( variance );
 
     double radius = 0.0f;
 
-    if( smoothingFactor < 1 )
-      radius = ( mean + std_mul_ * stddev );
-    else
-      radius = smoothingFactor * ( mean + std_mul_ * stddev );
+    if( smoothingFactor < 1 ) {
+      radius = ( mean + stdMul * stddev );
+    } else {
+      radius = smoothingFactor * ( mean + stdMul * stddev );
+    }
 
     size_t counter = 0;
     for( size_t i = 0; i < size; i++ ) {
-      if( tree.radiusSearch( input_[ i ], radius, indices_radius,
-                             dists_radius ) > 0 ) {
-        size_t numberOfIndices = indices_radius.size();
+      if( tree.radiusSearch( input[ i ], radius, indicesRadius, distRadius ) >
+          0 ) {
+        size_t numberOfIndices = indicesRadius.size();
         if( numberOfIndices > 10 ) {
           for( size_t j = 0; j < numberOfIndices; j++ ) {
             // Accumulating the co-ordinates of the points which comes in the
             // volume sphere
-            avgX[ counter ] = avgX[ counter ] + input_[ indices_radius[ j ] ].x;
-            avgY[ counter ] = avgY[ counter ] + input_[ indices_radius[ j ] ].y;
-            avgZ[ counter ] = avgZ[ counter ] + input_[ indices_radius[ j ] ].z;
+            avgX[ counter ] = avgX[ counter ] + input[ indicesRadius[ j ] ].x;
+            avgY[ counter ] = avgY[ counter ] + input[ indicesRadius[ j ] ].y;
+            avgZ[ counter ] = avgZ[ counter ] + input[ indicesRadius[ j ] ].z;
           }
           // New point cloud with average points
           avgX[ counter ] = avgX[ counter ] / numberOfIndices;
@@ -388,41 +404,43 @@ namespace PCF {
   }
 
   void Filter3D::euclideanClustering( double radius, size_t minClusterSize,
-                                      size_t maxClusterSize, pointCloud input_,
+                                      size_t maxClusterSize, pointCloud input,
                                       std::vector< pointCloud >& output )
   {
     KDtreeFlann tree;
 
-    tree.setInputCloud( input_ );
-    std::vector< bool > alreadyProcesed( input_.size(), false );
-    std::vector< size_t > raidusIndices;
-    std::vector< double > raidusDistances;
+    tree.setInputCloud( input );
+    std::vector< bool > alreadyProcessed( input.size(), false );
+    std::vector< size_t > radiusIndices;
+    std::vector< double > radiusDistances;
     std::vector< std::vector< int > > clusters;
     size_t counter = 0;
 
-    for( size_t i = 0; i < input_.size(); i++ ) {
-      if( alreadyProcesed[ i ] )
+    for( size_t i = 0; i < input.size(); i++ ) {
+      if( alreadyProcessed[ i ] ) {
         continue;
+      }
 
       std::vector< size_t > clusterPoints;
       size_t index = 0;
       clusterPoints.push_back( i );
 
-      alreadyProcesed[ i ] = true;
+      alreadyProcessed[ i ] = true;
 
       while( index < static_cast< int >( clusterPoints.size() ) ) {
-        if( !tree.radiusSearch( input_[ clusterPoints[ index ] ], radius,
-                                raidusIndices, raidusDistances ) ) {
+        if( tree.radiusSearch( input[ clusterPoints[ index ] ], radius,
+                               radiusIndices, radiusDistances ) == 0 ) {
           index++;
           continue;
         }
 
-        for( size_t j = 0; j < raidusIndices.size(); j++ ) {
-          if( alreadyProcesed[ raidusIndices[ j ] ] )
+        for( unsigned long radiusIndice : radiusIndices ) {
+          if( alreadyProcessed[ radiusIndice ] ) {
             continue;
+          }
 
-          clusterPoints.push_back( raidusIndices[ j ] );
-          alreadyProcesed[ raidusIndices[ j ] ] = true;
+          clusterPoints.push_back( radiusIndice );
+          alreadyProcessed[ radiusIndice ] = true;
         }
         index++;
       }
@@ -430,22 +448,23 @@ namespace PCF {
       if( clusterPoints.size() >= minClusterSize &&
           clusterPoints.size() <= maxClusterSize ) {
         std::vector< int > sortedCloud;
-        pointCloud intermediattPointCloud;
+        pointCloud intermediatePointCloud;
         sortedCloud.resize( clusterPoints.size() );
-        for( size_t j = 0; j < clusterPoints.size(); j++ )
+        for( size_t j = 0; j < clusterPoints.size(); j++ ) {
           sortedCloud[ j ] = clusterPoints[ j ];
+        }
 
         std::sort( sortedCloud.begin(), sortedCloud.end() );
         sortedCloud.erase(
           std::unique( sortedCloud.begin(), sortedCloud.end() ),
           sortedCloud.end() );
-        intermediattPointCloud.resize( sortedCloud.size() );
+        intermediatePointCloud.resize( sortedCloud.size() );
         for( size_t k = 0; k < sortedCloud.size(); k++ ) {
-          intermediattPointCloud[ k ].x = input_[ sortedCloud[ k ] ].x;
-          intermediattPointCloud[ k ].y = input_[ sortedCloud[ k ] ].y;
-          intermediattPointCloud[ k ].z = input_[ sortedCloud[ k ] ].z;
+          intermediatePointCloud[ k ].x = input[ sortedCloud[ k ] ].x;
+          intermediatePointCloud[ k ].y = input[ sortedCloud[ k ] ].y;
+          intermediatePointCloud[ k ].z = input[ sortedCloud[ k ] ].z;
         }
-        output.push_back( intermediattPointCloud );
+        output.push_back( intermediatePointCloud );
       }
     }
     sort( output.begin(), output.end(),
@@ -457,41 +476,43 @@ namespace PCF {
 
   void
     Filter3D::euclideanClustering( double radius, size_t minClusterSize,
-                                   size_t maxClusterSize, pointCloud input_,
+                                   size_t maxClusterSize, pointCloud input,
                                    std::vector< std::vector< int > >& output )
   {
     KDtreeFlann tree;
 
-    tree.setInputCloud( input_ );
-    std::vector< bool > alreadyProcesed( input_.size(), false );
-    std::vector< size_t > raidusIndices;
-    std::vector< double > raidusDistances;
+    tree.setInputCloud( input );
+    std::vector< bool > alreadyProceed( input.size(), false );
+    std::vector< size_t > radiusIndices;
+    std::vector< double > radiusDistances;
     std::vector< std::vector< int > > clusters;
     size_t counter = 0;
 
-    for( size_t i = 0; i < input_.size(); i++ ) {
-      if( alreadyProcesed[ i ] )
+    for( size_t i = 0; i < input.size(); i++ ) {
+      if( alreadyProceed[ i ] ) {
         continue;
+      }
 
       std::vector< size_t > clusterPoints;
       size_t index = 0;
       clusterPoints.push_back( i );
 
-      alreadyProcesed[ i ] = true;
+      alreadyProceed[ i ] = true;
 
       while( index < static_cast< int >( clusterPoints.size() ) ) {
-        if( !tree.radiusSearch( input_[ clusterPoints[ index ] ], radius,
-                                raidusIndices, raidusDistances ) ) {
+        if( tree.radiusSearch( input[ clusterPoints[ index ] ], radius,
+                               radiusIndices, radiusDistances ) == 0 ) {
           index++;
           continue;
         }
 
-        for( size_t j = 0; j < raidusIndices.size(); j++ ) {
-          if( alreadyProcesed[ raidusIndices[ j ] ] )
+        for( unsigned long radiusIndice : radiusIndices ) {
+          if( alreadyProceed[ radiusIndice ] ) {
             continue;
+          }
 
-          clusterPoints.push_back( raidusIndices[ j ] );
-          alreadyProcesed[ raidusIndices[ j ] ] = true;
+          clusterPoints.push_back( radiusIndice );
+          alreadyProceed[ radiusIndice ] = true;
         }
         index++;
       }
@@ -500,8 +521,9 @@ namespace PCF {
           clusterPoints.size() <= maxClusterSize ) {
         std::vector< int > sortedCloud;
         sortedCloud.resize( clusterPoints.size() );
-        for( int j = 0; j < clusterPoints.size(); j++ )
+        for( int j = 0; j < clusterPoints.size(); j++ ) {
           sortedCloud[ j ] = clusterPoints[ j ];
+        }
 
         std::sort( sortedCloud.begin(), sortedCloud.end() );
         sortedCloud.erase(
@@ -518,49 +540,49 @@ namespace PCF {
   }
 
   void Filter3D::findCentroidAndCovarianceMatrix(
-    pointCloud cloud, Eigen::Matrix3f& covariance_matrix,
+    pointCloud cloud, Eigen::Matrix3f& covarianceMatrix,
     Eigen::Matrix< double, 4, 1 >& centroid )
   {
     // initialize matrix in row form to save the computations
-    Eigen::Matrix< double, 1, 9, Eigen::RowMajor > accu =
+    Eigen::Matrix< double, 1, 9, Eigen::RowMajor > accum =
       Eigen::Matrix< double, 1, 9, Eigen::RowMajor >::Zero();
-    size_t point_count;
-    point_count = cloud.size();
+    size_t pointCount = 0;
+    pointCount        = cloud.size();
     // For each point in the cloud
-    for( size_t i = 0; i < point_count; ++i ) {
-      accu[ 0 ] += cloud[ i ].x * cloud[ i ].x;
-      accu[ 1 ] += cloud[ i ].x * cloud[ i ].y;
-      accu[ 2 ] += cloud[ i ].x * cloud[ i ].z;
-      accu[ 3 ] += cloud[ i ].y * cloud[ i ].y; // 4
-      accu[ 4 ] += cloud[ i ].y * cloud[ i ].z; // 5
-      accu[ 5 ] += cloud[ i ].z * cloud[ i ].z; // 8
-      accu[ 6 ] += cloud[ i ].x;
-      accu[ 7 ] += cloud[ i ].y;
-      accu[ 8 ] += cloud[ i ].z;
+    for( size_t i = 0; i < pointCount; ++i ) {
+      accum[ 0 ] += cloud[ i ].x * cloud[ i ].x;
+      accum[ 1 ] += cloud[ i ].x * cloud[ i ].y;
+      accum[ 2 ] += cloud[ i ].x * cloud[ i ].z;
+      accum[ 3 ] += cloud[ i ].y * cloud[ i ].y; // 4
+      accum[ 4 ] += cloud[ i ].y * cloud[ i ].z; // 5
+      accum[ 5 ] += cloud[ i ].z * cloud[ i ].z; // 8
+      accum[ 6 ] += cloud[ i ].x;
+      accum[ 7 ] += cloud[ i ].y;
+      accum[ 8 ] += cloud[ i ].z;
     }
 
-    accu /= static_cast< double >( point_count );
-    if( point_count != 0 ) {
-      centroid[ 0 ]                   = accu[ 6 ];
-      centroid[ 1 ]                   = accu[ 7 ];
-      centroid[ 2 ]                   = accu[ 8 ];
-      centroid[ 3 ]                   = 1;
-      covariance_matrix.coeffRef( 0 ) = accu[ 0 ] - accu[ 6 ] * accu[ 6 ];
-      covariance_matrix.coeffRef( 1 ) = accu[ 1 ] - accu[ 6 ] * accu[ 7 ];
-      covariance_matrix.coeffRef( 2 ) = accu[ 2 ] - accu[ 6 ] * accu[ 8 ];
-      covariance_matrix.coeffRef( 4 ) = accu[ 3 ] - accu[ 7 ] * accu[ 7 ];
-      covariance_matrix.coeffRef( 5 ) = accu[ 4 ] - accu[ 7 ] * accu[ 8 ];
-      covariance_matrix.coeffRef( 8 ) = accu[ 5 ] - accu[ 8 ] * accu[ 8 ];
-      covariance_matrix.coeffRef( 3 ) = covariance_matrix.coeff( 1 );
-      covariance_matrix.coeffRef( 6 ) = covariance_matrix.coeff( 2 );
-      covariance_matrix.coeffRef( 7 ) = covariance_matrix.coeff( 5 );
+    accum /= static_cast< double >( pointCount );
+    if( pointCount != 0 ) {
+      centroid[ 0 ]                  = accum[ 6 ];
+      centroid[ 1 ]                  = accum[ 7 ];
+      centroid[ 2 ]                  = accum[ 8 ];
+      centroid[ 3 ]                  = 1;
+      covarianceMatrix.coeffRef( 0 ) = accum[ 0 ] - accum[ 6 ] * accum[ 6 ];
+      covarianceMatrix.coeffRef( 1 ) = accum[ 1 ] - accum[ 6 ] * accum[ 7 ];
+      covarianceMatrix.coeffRef( 2 ) = accum[ 2 ] - accum[ 6 ] * accum[ 8 ];
+      covarianceMatrix.coeffRef( 4 ) = accum[ 3 ] - accum[ 7 ] * accum[ 7 ];
+      covarianceMatrix.coeffRef( 5 ) = accum[ 4 ] - accum[ 7 ] * accum[ 8 ];
+      covarianceMatrix.coeffRef( 8 ) = accum[ 5 ] - accum[ 8 ] * accum[ 8 ];
+      covarianceMatrix.coeffRef( 3 ) = covarianceMatrix.coeff( 1 );
+      covarianceMatrix.coeffRef( 6 ) = covarianceMatrix.coeff( 2 );
+      covarianceMatrix.coeffRef( 7 ) = covarianceMatrix.coeff( 5 );
     }
   }
 
   void Filter3D::findNormals( pointCloud cloud, size_t numberOfneighbour,
-                              std::vector< normalsAndCurvature >& output )
+                              std::vector< NormalsAndCurvature >& output )
   {
-    Eigen::Matrix3f covariance_matrix;
+    Eigen::Matrix3f covarianceMatrix;
     Eigen::Matrix< double, 4, 1 > centroid;
     pointCloud processingCloud( numberOfneighbour );
     KDtreeFlann tree( cloud );
@@ -576,22 +598,21 @@ namespace PCF {
         processingCloud[ j ].z = cloud[ pointIdxKSearch[ j ] ].z;
       }
 
-      findCentroidAndCovarianceMatrix( processingCloud, covariance_matrix,
+      findCentroidAndCovarianceMatrix( processingCloud, covarianceMatrix,
                                        centroid );
 
-      Eigen::Matrix3f::Scalar scale = covariance_matrix.cwiseAbs().maxCoeff();
-      Eigen::Matrix3f sacledCVM     = covariance_matrix / scale;
+      Eigen::Matrix3f::Scalar scale = covarianceMatrix.cwiseAbs().maxCoeff();
+      Eigen::Matrix3f scaledCVM     = covarianceMatrix / scale;
 
       // Extract the smallest eigenvalue and its eigenvector
-      Eigen::EigenSolver< Eigen::Matrix3f > es( sacledCVM );
+      Eigen::EigenSolver< Eigen::Matrix3f > es( scaledCVM );
 
       std::vector< double > eval( 3 );
       eval[ 0 ] = es.eigenvalues()[ 0 ].real();
       eval[ 1 ] = es.eigenvalues()[ 1 ].real();
       eval[ 2 ] = es.eigenvalues()[ 2 ].real();
 
-      std::vector< double >::iterator result =
-        std::min_element( std::begin( eval ), std::end( eval ) );
+      auto result = std::min_element( std::begin( eval ), std::end( eval ) );
       int minEvalIndex = std::distance( std::begin( eval ), result );
 
       Eigen::VectorXcf v = es.eigenvectors().col( minEvalIndex );
@@ -606,104 +627,109 @@ namespace PCF {
         output[ i ].nz *= -1;
       }
       // Compute the curvature surface change
-      double eig_sum =
-        sacledCVM.coeff( 0 ) + sacledCVM.coeff( 4 ) + sacledCVM.coeff( 8 );
-      if( eig_sum != 0 )
+      double eigSum =
+        scaledCVM.coeff( 0 ) + scaledCVM.coeff( 4 ) + scaledCVM.coeff( 8 );
+      if( eigSum != 0 ) {
         output[ i ].curvature = fabsf( static_cast< float >(
-          es.eigenvalues()[ minEvalIndex ].real() / eig_sum ) );
-      else
+          es.eigenvalues()[ minEvalIndex ].real() / eigSum ) );
+      } else {
         output[ i ].curvature = 0;
+      }
     }
   }
 
-  void Filter3D::SetPasstroughLimits_X( double x_min, double x_max )
+  void Filter3D::setPassthroughLimitsX( double xMin, double xMax )
   {
-    if( x_min <= x_max ) {
-      x_limits.first          = x_min;
-      x_limits.second         = x_max;
-      x_passthough_limits_set = true;
+    if( xMin <= xMax ) {
+      x_limits_.first           = xMin;
+      x_limits_.second          = xMax;
+      x_passthrough_limits_set_ = true;
     }
   }
 
-  void Filter3D::SetPasstroughLimits_Y( double y_min, double y_max )
+  void Filter3D::setPassthroughLimitsY( double yMin, double yMax )
   {
-    if( y_min <= y_max ) {
-      y_limits.first          = y_min;
-      y_limits.second         = y_max;
-      y_passthough_limits_set = true;
+    if( yMin <= yMax ) {
+      y_limits_.first           = yMin;
+      y_limits_.second          = yMax;
+      y_passthrough_limits_set_ = true;
     }
   }
 
-  void Filter3D::SetPasstroughLimits_Z( double z_min, double z_max )
+  void Filter3D::setPassthroughLimitsZ( double zMin, double zMax )
   {
-    if( z_min <= z_max ) {
-      z_limits.first          = z_min;
-      z_limits.second         = z_max;
-      z_passthough_limits_set = true;
+    if( zMin <= zMax ) {
+      z_limits_.first           = zMin;
+      z_limits_.second          = zMax;
+      z_passthrough_limits_set_ = true;
     }
   }
 
-  void Filter3D::PassthroughFilter( pointCloud& input, pointCloud& output )
+  void Filter3D::passthroughFilter( pointCloud& input, pointCloud& output )
   {
     pointCloud points = input;
     output.resize( points.size() );
-    pointCloud::iterator it = output.begin();
+    auto it = output.begin();
 
-    if( x_passthough_limits_set && y_passthough_limits_set &&
-        z_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.x, x_limits.first, x_limits.second ) &&
-                             InRange( p.y, y_limits.first, y_limits.second ) &&
-                             InRange( p.z, z_limits.first, z_limits.second ) );
-                         } );
-    } else if( x_passthough_limits_set && y_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.x, x_limits.first, x_limits.second ) &&
-                             InRange( p.y, y_limits.first, y_limits.second ) );
-                         } );
-    } else if( x_passthough_limits_set && z_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.x, x_limits.first, x_limits.second ) &&
-                             InRange( p.z, z_limits.first, z_limits.second ) );
-                         } );
-    } else if( y_passthough_limits_set && z_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.y, y_limits.first, y_limits.second ) &&
-                             InRange( p.z, z_limits.first, z_limits.second ) );
-                         } );
-    } else if( x_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.x, x_limits.first, x_limits.second ) );
-                         } );
-    } else if( y_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.y, y_limits.first, y_limits.second ) );
-                         } );
-    } else if( z_passthough_limits_set ) {
-      it = std::copy_if( points.begin(), points.end(), output.begin(),
-                         [ this ]( const Point& p ) {
-                           return (
-                             InRange( p.z, z_limits.first, z_limits.second ) );
-                         } );
+    if( x_passthrough_limits_set_ && y_passthrough_limits_set_ &&
+        z_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.x, x_limits_.first, x_limits_.second ) &&
+                   inRange( p.y, y_limits_.first, y_limits_.second ) &&
+                   inRange( p.z, z_limits_.first, z_limits_.second ) );
+        } );
+    } else if( x_passthrough_limits_set_ && y_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.x, x_limits_.first, x_limits_.second ) &&
+                   inRange( p.y, y_limits_.first, y_limits_.second ) );
+        } );
+    } else if( x_passthrough_limits_set_ && z_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.x, x_limits_.first, x_limits_.second ) &&
+                   inRange( p.z, z_limits_.first, z_limits_.second ) );
+        } );
+    } else if( y_passthrough_limits_set_ && z_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.y, y_limits_.first, y_limits_.second ) &&
+                   inRange( p.z, z_limits_.first, z_limits_.second ) );
+        } );
+    } else if( x_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.x, x_limits_.first, x_limits_.second ) );
+        } );
+    } else if( y_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.y, y_limits_.first, y_limits_.second ) );
+        } );
+    } else if( z_passthrough_limits_set_ ) {
+      it = std::copy_if(
+        points.begin(), points.end(), output.begin(),
+        [ this ]( const Point& p ) {
+          return ( inRange( p.z, z_limits_.first, z_limits_.second ) );
+        } );
     }
 
     output.resize( std::distance( output.begin(), it ) );
 
-    x_passthough_limits_set = false;
-    y_passthough_limits_set = false;
-    z_passthough_limits_set = false;
+    x_passthrough_limits_set_ = false;
+    y_passthrough_limits_set_ = false;
+    z_passthrough_limits_set_ = false;
   }
 
+  bool Filter3D::inRange( double x, double x1, double x2 )
+  {
+    return ( x >= x1 ) ? ( x <= x2 ) : false;
+  }
 } // namespace PCF

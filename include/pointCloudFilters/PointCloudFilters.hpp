@@ -29,62 +29,66 @@ namespace PCF {
 
     ~Filter3D();
 
-    void statisticalOutlierRemoval( size_t _k, pointCloud input_,
+    void statisticalOutlierRemoval( size_t k, pointCloud input,
                                     pointCloud& output );
 
-    void voxelFilter( pointCloud input_, double _Delta, pointCloud& output );
+    void voxelFilter( pointCloud input, double delta, pointCloud& output );
 
-    double getMean( size_t _k, pointCloud input_ );
+    double getMean( size_t k, pointCloud input );
 
-    void MakeSmoothPointCloud( size_t _k, double smoothingFactor,
-                               pointCloud input_, pointCloud& output );
+    void makeSmoothPointCloud( size_t k, double smoothingFactor,
+                               pointCloud input, pointCloud& output );
 
     void euclideanClustering( double radius, size_t minClusterSize,
-                              size_t maxClusterSize, pointCloud input_,
+                              size_t maxClusterSize, pointCloud input,
                               std::vector< std::vector< int > >& output );
 
     void euclideanClustering( double radius, size_t minClusterSize,
-                              size_t maxClusterSize, pointCloud input_,
+                              size_t maxClusterSize, pointCloud input,
                               std::vector< pointCloud >& output );
 
     void findCentroidAndCovarianceMatrix(
-      pointCloud cloud, Eigen::Matrix3f& covariance_matrix,
+      pointCloud cloud, Eigen::Matrix3f& covarianceMatrix,
       Eigen::Matrix< double, 4, 1 >& centroid );
 
     void findNormals( pointCloud cloud, size_t numberOfneighbour,
-                      std::vector< normalsAndCurvature >& output );
+                      std::vector< NormalsAndCurvature >& output );
 
-    void SetPasstroughLimits_X( double x_min, double x_max );
+    void setPassthroughLimitsX( double xMin, double xMax );
 
-    void SetPasstroughLimits_Y( double y_min, double y_max );
+    void setPassthroughLimitsY( double yMin, double yMax );
 
-    void SetPasstroughLimits_Z( double z_min, double z_max );
+    void setPassthroughLimitsZ( double zMin, double zMax );
 
-    void PassthroughFilter( pointCloud& input, pointCloud& output );
+    void passthroughFilter( pointCloud& input, pointCloud& output );
 
   private:
-    struct cloud_point_index_idx
+    struct CloudPointIndexIdx
     {
       size_t idx;
-      size_t cloud_point_index;
+      size_t cloudPointIndex;
 
-      cloud_point_index_idx( size_t idx_, size_t cloud_point_index_ )
-        : idx( idx_ ), cloud_point_index( cloud_point_index_ )
+      CloudPointIndexIdx( const CloudPointIndexIdx& )            = default;
+      CloudPointIndexIdx( CloudPointIndexIdx&& )                 = default;
+      ~CloudPointIndexIdx()                                      = default;
+      CloudPointIndexIdx()                                       = default;
+      CloudPointIndexIdx& operator=( const CloudPointIndexIdx& ) = default;
+      CloudPointIndexIdx& operator=( CloudPointIndexIdx&& )      = default;
+
+      CloudPointIndexIdx( size_t idx, size_t cloudPointIndex )
+        : idx( idx ), cloudPointIndex( cloudPointIndex )
       {
       }
-      bool operator<( const cloud_point_index_idx& p ) const
+      bool operator<( const CloudPointIndexIdx& p ) const
       {
         return ( idx < p.idx );
       }
     };
 
-    std::pair< double, double > x_limits, y_limits, z_limits;
-    bool x_passthough_limits_set, y_passthough_limits_set,
-      z_passthough_limits_set;
+    std::pair< double, double > x_limits_, y_limits_, z_limits_;
+    bool x_passthrough_limits_set_{ false }, y_passthrough_limits_set_{ false },
+      z_passthrough_limits_set_{ false };
 
-    bool InRange( double x, double x1, double x2 )
-    {
-      return ( x >= x1 ) ? ( x <= x2 ) : false;
-    }
+    static bool inRange( double x, double x1, double x2 );
   };
 } // namespace PCF
